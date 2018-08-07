@@ -2,9 +2,11 @@ import base64
 import os
 import settings
 import requests
+import talon
 from apiclient import errors
 from apiclient.discovery import build
 from google.oauth2 import service_account
+from talon import quotations
 
 
 def list_messages_matching_query(service, user_id, query=''):
@@ -91,13 +93,19 @@ def push_to_api(message):
         'accept': 'application/vnd.faultfixers.v2+json',
         'content-type': 'application/json',
     }
+
+    full_html = get_body_by_mime_type(message, 'text/html')
+    full_text = get_body_by_mime_type(message, 'text/plain')
+
     payload = {
         'emailId': message['id'],
         'fromEmail': from_email,
         'fromName': from_name,
         'subject': get_header(message, 'Subject'),
-        'html': get_body_by_mime_type(message, 'text/html'),
-        'text': get_body_by_mime_type(message, 'text/plain'),
+        'fullHtml': full_html,
+        'htmlReply': quotations.extract_from_html(full_html),
+        'fullText': full_text,
+        'textReply': quotations.extract_from_plain(full_text),
     }
 
     response = requests.post(os.getenv('API_ENDPOINT'), headers=headers, json=payload)
@@ -121,6 +129,7 @@ def run():
 
 
 try:
+    talon.init()
     run()
 except errors.HttpError, error:
     print 'An error occurred: %s' % error

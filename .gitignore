@@ -1,3 +1,4 @@
 /service-account-key.json
 /.idea/
 /.env
+*.pyc
