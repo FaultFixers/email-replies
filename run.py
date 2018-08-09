@@ -117,7 +117,7 @@ def run():
     service = create_service()
 
     list_messages = list_messages_matching_query(
-        service, 'me', 'NOT label:TICKET_UPDATE_HANDLED')
+        service, 'me', os.getenv('GMAIL_QUERY') + ' AND NOT label:TICKET_UPDATE_HANDLED')
 
     for list_message in list_messages:
         print 'Getting message %s' % list_message['id']
