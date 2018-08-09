@@ -52,8 +52,22 @@ def get_message(service, user_id, message_id):
     return service.users().messages().get(userId=user_id, id=message_id).execute()
 
 
+def modify_message(service, user_id, message_id, modifications):
+    """Add a label to a message.
+
+    Args:
+    service: Authorized Gmail API service instance.
+    user_id: User's email address. The special value "me"
+    can be used to indicate the authenticated user.
+    message_id: The message ID.
+    modifications: The modifications.
+    """
+    return service.users().messages().modify(userId=user_id, id=message_id, body=modifications).execute()
+
+
 def create_service():
     SCOPES = [
+        'https://www.googleapis.com/auth/gmail.modify',
         'https://www.googleapis.com/auth/gmail.readonly',
     ]
     SERVICE_ACCOUNT_FILE = 'service-account-key.json'
@@ -117,7 +131,14 @@ def run():
     service = create_service()
 
     list_messages = list_messages_matching_query(
-        service, 'me', os.getenv('GMAIL_QUERY') + ' AND NOT label:TICKET_UPDATE_HANDLED')
+        service, 'me', os.getenv('GMAIL_QUERY') + ' AND NOT label:' + os.getenv('HANDLED_LABEL_NAME'))
+
+    print '%d messages to process' % len(list_messages)
+
+    if len(list_messages) == 0:
+        return
+
+    talon.init()
 
     for list_message in list_messages:
         print 'Getting message %s' % list_message['id']
@@ -127,9 +148,13 @@ def run():
         push_to_api(full_message)
         print 'Pushed message %s to API' % list_message['id']
 
+        modify_message(service, 'me', list_message['id'], {
+            'addLabelIds': [os.getenv('HANDLED_LABEL_ID')],
+            'removeLabelIds': ['UNREAD'],
+        })
+
 
 try:
-    talon.init()
     run()
 except errors.HttpError, error:
     print 'An error occurred: %s' % error
