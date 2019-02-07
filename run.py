@@ -86,40 +86,61 @@ def get_header(message, header_name):
     raise 'Header not present: ' + header_name
 
 
+def decode_base_64_data(data):
+    return base64.urlsafe_b64decode(data.encode('ASCII'))
+
+
 def get_body_by_mime_type(message, mime_type):
     for part in message['payload']['parts']:
         if part['mimeType'] == mime_type:
-            return base64.urlsafe_b64decode(part['body']['data'].encode('ASCII'))
+            return decode_base_64_data(part['body']['data'])
     raise 'Mime-type not present: ' + mime_type
 
 
 def push_to_api(message):
+    email_id = message['id']
+
     from_header = get_header(message, 'From')
     if '<' in from_header:
         from_email = from_header.split(' <')[1].split('>')[0]
         from_name = from_header.split(' <')[0]
+        from_name = from_name.strip('"')
+        if from_name == from_email:
+            from_name = None
     else:
         from_email = from_header
-        from_email = None
+        from_name = None
+
+    subject = get_header(message, 'Subject')
+
+    if 'parts' in message['payload']:
+        full_html = get_body_by_mime_type(message, 'text/html')
+        html_reply = quotations.extract_from_html(full_html)
+        full_text = get_body_by_mime_type(message, 'text/plain')
+        text_reply = quotations.extract_from_plain(full_text)
+    elif 'mimeType' in message['payload'] and message['payload']['mimeType'] == 'text/html' and 'body' in message['payload'] and 'snippet' in message:
+        full_html = decode_base_64_data(message['payload']['body']['data'])
+        html_reply = quotations.extract_from_html(full_html)
+        full_text = message['snippet']
+        text_reply = message['snippet']
+    else:
+        raise 'Unsupported email format'
+
+    payload = {
+        'emailId': email_id,
+        'fromEmail': from_email,
+        'fromName': from_name,
+        'subject': subject,
+        'fullHtml': full_html,
+        'htmlReply': html_reply,
+        'fullText': full_text,
+        'textReply': text_reply,
+    }
 
     headers = {
         'authorization': os.getenv('API_AUTHORIZATION_HEADER'),
         'accept': 'application/vnd.faultfixers.v8+json',
         'content-type': 'application/json',
-    }
-
-    full_html = get_body_by_mime_type(message, 'text/html')
-    full_text = get_body_by_mime_type(message, 'text/plain')
-
-    payload = {
-        'emailId': message['id'],
-        'fromEmail': from_email,
-        'fromName': from_name,
-        'subject': get_header(message, 'Subject'),
-        'fullHtml': full_html,
-        'htmlReply': quotations.extract_from_html(full_html),
-        'fullText': full_text,
-        'textReply': quotations.extract_from_plain(full_text),
     }
 
     response = requests.post(os.getenv('API_ENDPOINT'), headers=headers, json=payload)
