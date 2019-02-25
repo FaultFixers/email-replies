@@ -139,7 +139,7 @@ def push_to_api(message):
 
     headers = {
         'authorization': os.getenv('API_AUTHORIZATION_HEADER'),
-        'accept': 'application/vnd.faultfixers.v8+json',
+        'accept': 'application/vnd.faultfixers.v11+json',
         'content-type': 'application/json',
     }
 
